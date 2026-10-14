@@ -3,6 +3,7 @@ node_modules/
 dist/
 */dist/
 Expo_Game/public/forest/
+TheForest/src/textures/
 *.stl
 *.exr
 .vscode/
