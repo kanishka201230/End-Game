@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Last Door - Multiplayer Mode</title>
+  <style>
+    /* Reset & Base Setup */
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background-color: #040108;
+      overflow: hidden;
+      font-family: 'Cinzel', 'Trajan Pro', 'Georgia', serif;
+      color: #f3e8ff;
+    }
+
+    /* 
+      Full Viewport Container & Full View Game Screen:
+      Stretches edge-to-edge to fill the entire window with zero letterboxing / side bars!
+    */
+    .viewport-wrapper {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background-color: #040108;
+    }
+
+    /* Ambient Crystal Dust Canvas Layer */
+    #ambient-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* The Game Screen: True 100vw x 100vh Full View */
+    .game-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-image: url('background.jpg');
+      background-size: 100% 100%;
+      background-position: center;
+      background-repeat: no-repeat;
+      overflow: hidden;
+    }
+
+    /* 
+      Interactive Buttons:
+      Mapped to the exact percentage coordinates matching the 1024x576 source art:
+      Left: 24.805%
+      Width: 50.391%
+      Height: 26.736%
+      Button 1 (Create Game) Top: 33.681%
+      Button 2 (Join Existing Game) Top: 61.458%
+    */
+    .menu-button {
+      position: absolute;
+      left: 24.805%;
+      width: 50.391%;
+      height: 26.736%;
+      background: transparent;
+      border: none;
+      outline: none;
+      cursor: pointer;
+      display: block;
+      z-index: 20;
+      padding: 0;
+      transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+                  filter 0.25s ease;
+      touch-action: manipulation;
+    }
+
+    .menu-button.create-game {
+      top: 33.681%;
+    }
+
+    .menu-button.join-game {
+      top: 61.458%;
+    }
+
+    /* Chamfered Inner Hitbox */
+    .button-inner-hitbox {
+      position: absolute;
+      inset: 0;
+      clip-path: polygon(
+        3.5% 0%,
+        96.5% 0%,
+        100% 11.5%,
+        100% 88.5%,
+        96.5% 100%,
+        3.5% 100%,
+        0% 88.5%,
+        0% 11.5%
+      );
+    }
+
+    /* Glowing Hover Overlay */
+    .button-glow-fill {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      background: radial-gradient(circle at center, rgba(186, 95, 252, 0.16) 0%, rgba(138, 43, 226, 0.28) 70%, rgba(220, 140, 255, 0.45) 100%);
+      box-shadow: inset 0 0 25px rgba(210, 110, 255, 0.6),
+                  inset 0 0 8px rgba(255, 255, 255, 0.5);
+      transition: opacity 0.25s ease;
+      pointer-events: none;
+    }
+
+    /* SVG Cyber-Neon Frame Overlay */
+    .button-frame-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+
+    .neon-border-path {
+      fill: none;
+      stroke: #d67ee6;
+      stroke-width: 2.2;
+      filter: drop-shadow(0 0 6px #ba5ffc) drop-shadow(0 0 12px #993bf2);
+      vector-effect: non-scaling-stroke;
+    }
+
+    .corner-bracket {
+      fill: none;
+      stroke: #ffffff;
+      stroke-width: 2.8;
+      filter: drop-shadow(0 0 4px #ffceff);
+      vector-effect: non-scaling-stroke;
+    }
+
+    .center-notch {
+      fill: none;
+      stroke: #ffffff;
+      stroke-width: 2.5;
+      filter: drop-shadow(0 0 5px #e08aff);
+      vector-effect: non-scaling-stroke;
+    }
+
+    /* Light Sweep Shimmer */
+    .button-shimmer {
+      position: absolute;
+      top: 0;
+      left: -120%;
+      width: 70%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 240, 255, 0.05) 30%,
+        rgba(255, 255, 255, 0.28) 50%,
+        rgba(255, 240, 255, 0.05) 70%,
+        transparent 100%
+      );
+      transform: skewX(-25deg);
+      pointer-events: none;
+    }
+
+    /* Hover States */
+    .menu-button:hover {
+      transform: scale(1.012) translateY(-1px);
+      filter: brightness(1.15) contrast(1.06);
+    }
+
+    .menu-button:hover .button-glow-fill,
+    .menu-button:hover .button-frame-svg {
+      opacity: 1;
+    }
+
+    .menu-button:hover .button-shimmer {
+      animation: sweepShimmer 1.15s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+
+    @keyframes sweepShimmer {
+      0% {
+        left: -100%;
+      }
+      100% {
+        left: 200%;
+      }
+    }
+
+    /* Active / Click State */
+    .menu-button:active {
+      transform: scale(0.99) translateY(1px);
+      filter: brightness(1.4) drop-shadow(0 0 20px #e08aff);
+      transition: transform 0.06s ease, filter 0.06s ease;
+    }
+
+    .menu-button:focus-visible {
+      outline: 2px solid #e08aff;
+      outline-offset: 4px;
+    }
+
+    /* Top-Right Control Buttons (Mute / Particles) */
+    .controls-overlay {
+      position: absolute;
+      top: 16px;
+      right: 18px;
+      display: flex;
+      gap: 10px;
+      z-index: 100;
+    }
+
+    .icon-btn {
+      background: rgba(18, 4, 32, 0.75);
+      border: 1px solid rgba(186, 95, 252, 0.45);
+      color: #e2c0ff;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      transition: all 0.2s ease;
+      font-size: 15px;
+    }
+
+    .icon-btn:hover {
+      background: rgba(55, 15, 90, 0.9);
+      border-color: #ba5ffc;
+      color: #ffffff;
+      box-shadow: 0 0 15px rgba(186, 95, 252, 0.6);
+      transform: scale(1.08);
+    }
+
+    /* ========================================================
+       MODAL DIALOGS
+       ======================================================== */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(5, 1, 12, 0.86);
+      backdrop-filter: blur(12px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .modal-backdrop.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-card {
+      width: min(92%, 520px);
+      background: radial-gradient(circle at 50% 15%, #230840 0%, #100320 60%, #080112 100%);
+      border: 2px solid #ba5ffc;
+      border-radius: 10px;
+      padding: 32px 34px;
+      position: relative;
+      box-shadow: 0 0 50px rgba(186, 95, 252, 0.5),
+                  inset 0 0 25px rgba(186, 95, 252, 0.25);
+      transform: scale(0.92) translateY(15px);
+      transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+      color: #f6ecff;
+    }
+
+    .modal-backdrop.active .modal-card {
+      transform: scale(1) translateY(0);
+    }
+
+    .modal-close-btn {
+      position: absolute;
+      top: 14px;
+      right: 16px;
+      background: transparent;
+      border: none;
+      color: #ba5ffc;
+      font-size: 26px;
+      cursor: pointer;
+      line-height: 1;
+      transition: color 0.2s, transform 0.2s;
+    }
+
+    .modal-close-btn:hover {
+      color: #ffffff;
+      transform: scale(1.2);
+      text-shadow: 0 0 12px #ba5ffc;
+    }
+
+    .modal-header {
+      text-align: center;
+      margin-bottom: 22px;
+    }
+
+    .modal-title {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #ffffff;
+      text-shadow: 0 0 12px rgba(186, 95, 252, 0.9), 0 0 24px rgba(186, 95, 252, 0.6);
+      margin-bottom: 6px;
+    }
+
+    .modal-subtitle {
+      font-size: 13px;
+      color: #d1b4ec;
+      letter-spacing: 1.2px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #ba5ffc, transparent);
+      margin: 16px 0 22px;
+    }
+
+    /* Modal Form Controls */
+    .form-group {
+      margin-bottom: 22px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #e0baff;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+
+    .text-input {
+      width: 100%;
+      background: rgba(10, 2, 22, 0.9);
+      border: 1.5px solid #8e22ff;
+      border-radius: 6px;
+      padding: 14px 18px;
+      color: #ffffff;
+      font-size: 18px;
+      letter-spacing: 3px;
+      outline: none;
+      font-family: 'Consolas', 'Courier New', monospace;
+      text-transform: uppercase;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .text-input:focus {
+      border-color: #d67ee6;
+      box-shadow: 0 0 18px rgba(186, 95, 252, 0.65);
+    }
+
+    .text-input::placeholder {
+      color: #6d5489;
+      letter-spacing: 2px;
+      text-transform: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    .input-code-display {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(10, 2, 22, 0.9);
+      border: 1.5px solid #993bf2;
+      border-radius: 6px;
+      padding: 12px 18px;
+      box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.7);
+    }
+
+    .code-text {
+      flex: 1;
+      font-size: 26px;
+      letter-spacing: 6px;
+      font-weight: 800;
+      color: #ffdeff;
+      text-shadow: 0 0 12px #ba5ffc;
+      font-family: 'Consolas', 'Courier New', monospace;
+    }
+
+    .copy-btn {
+      background: #7a1cd1;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      font-size: 12px;
+      letter-spacing: 1.5px;
+      cursor: pointer;
+      font-weight: 700;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+
+    .copy-btn:hover {
+      background: #993bf2;
+      box-shadow: 0 0 12px rgba(186, 95, 252, 0.8);
+    }
+
+    /* Big Action Buttons */
+    .big-generate-btn {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #a342fc 0%, #6f16c4 100%);
+      border: 1.5px solid #e096ff;
+      border-radius: 6px;
+      color: #ffffff;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      box-shadow: 0 0 25px rgba(163, 66, 252, 0.6);
+      transition: all 0.25s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .big-generate-btn:hover {
+      background: linear-gradient(135deg, #b95dff 0%, #8320e3 100%);
+      box-shadow: 0 0 35px rgba(186, 95, 252, 0.9);
+      transform: translateY(-2px);
+    }
+
+    .big-generate-btn:active {
+      transform: translateY(1px);
+    }
+
+    /* Status Container: Waiting for the attacker */
+    .waiting-box {
+      margin-top: 18px;
+      background: rgba(14, 3, 28, 0.85);
+      border: 1px dashed rgba(186, 95, 252, 0.6);
+      border-radius: 8px;
+      padding: 22px 20px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Radar / Pulse Ripple Animation */
+    .radar-pulse-ring {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 2px solid #ba5ffc;
+      margin: 0 auto 14px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .radar-pulse-ring::before,
+    .radar-pulse-ring::after {
+      content: '';
+      position: absolute;
+      inset: -8px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(186, 95, 252, 0.5);
+      animation: radarRipple 2s ease-out infinite;
+    }
+
+    .radar-pulse-ring::after {
+      inset: -16px;
+      animation-delay: 0.75s;
+    }
+
+    @keyframes radarRipple {
+      0% {
+        transform: scale(0.6);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(1.6);
+        opacity: 0;
+      }
+    }
+
+    .radar-icon {
+      font-size: 20px;
+      animation: pulseIcon 1.5s ease-in-out infinite alternate;
+    }
+
+    @keyframes pulseIcon {
+      from { transform: scale(0.9); opacity: 0.7; }
+      to { transform: scale(1.15); opacity: 1; }
+    }
+
+    .waiting-title {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #ffdeff;
+      text-shadow: 0 0 10px #ba5ffc;
+      margin-bottom: 6px;
+    }
+
+    .waiting-sub {
+      font-size: 12px;
+      color: #bfa3d8;
+      letter-spacing: 1px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    .sim-hint {
+      margin-top: 14px;
+      font-size: 11px;
+      color: #9374b3;
+      letter-spacing: 0.5px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    .sim-now-link {
+      color: #e096ff;
+      text-decoration: underline;
+      cursor: pointer;
+      margin-left: 5px;
+    }
+
+    /* Attacker Request Notification Box (Black and Violet Theme Only) */
+    .attacker-request-box {
+      margin-top: 18px;
+      background: radial-gradient(circle at 50% 0%, rgba(75, 0, 130, 0.35) 0%, rgba(12, 2, 24, 0.95) 80%);
+      border: 2px solid #ba5ffc;
+      border-radius: 8px;
+      padding: 22px 20px;
+      box-shadow: 0 0 35px rgba(186, 95, 252, 0.55), inset 0 0 18px rgba(186, 95, 252, 0.25);
+      text-align: center;
+      animation: alertPulse 1.6s ease-in-out infinite alternate;
+    }
+
+    @keyframes alertPulse {
+      0% {
+        box-shadow: 0 0 25px rgba(186, 95, 252, 0.4), inset 0 0 15px rgba(186, 95, 252, 0.2);
+        border-color: #8e22ff;
+      }
+      100% {
+        box-shadow: 0 0 40px rgba(186, 95, 252, 0.8), inset 0 0 25px rgba(186, 95, 252, 0.35);
+        border-color: #d67ee6;
+      }
+    }
+
+    .attacker-badge {
+      display: inline-block;
+      background: rgba(186, 95, 252, 0.2);
+      border: 1px solid #ba5ffc;
+      padding: 4px 14px;
+      border-radius: 20px;
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #ffdeff;
+      margin-bottom: 12px;
+    }
+
+    .attacker-name {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #ffffff;
+      text-shadow: 0 0 12px #d67ee6;
+      margin-bottom: 6px;
+    }
+
+    .attacker-desc {
+      font-size: 13px;
+      color: #d1b4ec;
+      letter-spacing: 1px;
+      margin-bottom: 22px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    /* Join & Deny Action Buttons: STRICTLY BLACK AND VIOLET THEME (Zero Green / Red) */
+    .join-deny-actions {
+      display: flex;
+      gap: 14px;
+    }
+
+    .btn-action-join {
+      flex: 1;
+      padding: 14px 18px;
+      background: linear-gradient(135deg, #2f0c52 0%, #100220 100%);
+      border: 1.5px solid #ba5ffc;
+      border-radius: 6px;
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      box-shadow: 0 0 20px rgba(186, 95, 252, 0.45), inset 0 0 10px rgba(186, 95, 252, 0.25);
+      transition: all 0.2s ease;
+    }
+
+    .btn-action-join:hover {
+      background: linear-gradient(135deg, #4d1582 0%, #1a0330 100%);
+      border-color: #d67ee6;
+      box-shadow: 0 0 30px rgba(186, 95, 252, 0.8), inset 0 0 15px rgba(220, 140, 255, 0.4);
+      transform: translateY(-2px);
+    }
+
+    .btn-action-deny {
+      flex: 1;
+      padding: 14px 18px;
+      background: linear-gradient(135deg, #130322 0%, #06000c 100%);
+      border: 1.5px solid #6c23a8;
+      border-radius: 6px;
+      color: #c9a9ea;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      box-shadow: inset 0 0 12px rgba(108, 35, 168, 0.35);
+      transition: all 0.2s ease;
+    }
+
+    .btn-action-deny:hover {
+      background: linear-gradient(135deg, #22063b 0%, #0c0116 100%);
+      border-color: #ba5ffc;
+      color: #ffffff;
+      box-shadow: 0 0 22px rgba(186, 95, 252, 0.55);
+      transform: translateY(-2px);
+    }
+
+    /* Modal standard bottom actions */
+    .modal-actions {
+      display: flex;
+      gap: 14px;
+      margin-top: 26px;
+    }
+
+    .action-btn {
+      flex: 1;
+      padding: 14px 18px;
+      border-radius: 6px;
+      font-size: 14px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .action-btn.primary {
+      background: linear-gradient(135deg, #2b0b4a 0%, #0d0118 100%);
+      border: 1.5px solid #ba5ffc;
+      color: #ffffff;
+      box-shadow: 0 0 20px rgba(153, 59, 242, 0.45);
+    }
+
+    .action-btn.primary:hover {
+      background: linear-gradient(135deg, #451276 0%, #18022b 100%);
+      border-color: #d67ee6;
+      box-shadow: 0 0 30px rgba(186, 95, 252, 0.8);
+      transform: translateY(-1px);
+    }
+
+    .action-btn.secondary {
+      background: rgba(18, 4, 32, 0.85);
+      border: 1px solid #5d259c;
+      color: #c9a9ea;
+    }
+
+    .action-btn.secondary:hover {
+      background: rgba(35, 8, 62, 0.95);
+      border-color: #8e22ff;
+      color: #fff;
+    }
+
+    /* Toast Notification Banner */
+    .toast-msg {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: rgba(16, 3, 30, 0.95);
+      border: 1px solid #ba5ffc;
+      box-shadow: 0 0 25px rgba(186, 95, 252, 0.6);
+      color: #ffefff;
+      padding: 10px 24px;
+      border-radius: 30px;
+      font-size: 13px;
+      letter-spacing: 1px;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.25s ease;
+      z-index: 300;
+      white-space: nowrap;
+    }
+
+    .toast-msg.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="viewport-wrapper">
+    <!-- Atmospheric Ambient Crystal Dust Particles -->
+    <canvas id="ambient-canvas"></canvas>
+
+    <!-- Top-Right Controls -->
+    <div class="controls-overlay">
+      <button class="icon-btn" id="audio-toggle-btn" title="Toggle Sound Effects" aria-label="Toggle Sound Effects">
+        <span id="audio-icon">🔊</span>
+      </button>
+      <button class="icon-btn" id="particles-toggle-btn" title="Toggle Crystal Particles" aria-label="Toggle Crystal Particles">
+        ✨
+      </button>
+    </div>
+
+    <!-- Full View Game Screen: Stretches 100% width and 100% height without black side bars -->
+    <main class="game-screen" role="region" aria-label="The Last Door Multiplayer Menu">
+
+      <!-- Rectangular Button 1: Create Game -->
+      <button 
+        type="button" 
+        class="menu-button create-game" 
+        id="btn-create-game"
+        aria-label="Create Game: Start a new game and share the code with others"
+      >
+        <div class="button-inner-hitbox">
+          <div class="button-glow-fill"></div>
+          <div class="button-shimmer"></div>
+        </div>
+        <svg class="button-frame-svg" viewBox="0 0 516 154" preserveAspectRatio="none">
+          <polygon points="18,1 498,1 515,18 515,136 498,153 18,153 1,136 1,18" class="neon-border-path" />
+          <path d="M 1,28 L 1,18 L 18,1 L 28,1" class="corner-bracket" />
+          <path d="M 488,1 L 498,1 L 515,18 L 515,28" class="corner-bracket" />
+          <path d="M 515,126 L 515,136 L 498,153 L 488,153" class="corner-bracket" />
+          <path d="M 28,153 L 18,153 L 1,136 L 1,126" class="corner-bracket" />
+          <path d="M 246,1 L 270,1" class="center-notch" />
+          <path d="M 246,153 L 270,153" class="center-notch" />
+        </svg>
+      </button>
+
+      <!-- Rectangular Button 2: Join Existing Game -->
+      <button 
+        type="button" 
+        class="menu-button join-game" 
+        id="btn-join-game"
+        aria-label="Join Existing Game: Enter the code shared by the host"
+      >
+        <div class="button-inner-hitbox">
+          <div class="button-glow-fill"></div>
+          <div class="button-shimmer"></div>
+        </div>
+        <svg class="button-frame-svg" viewBox="0 0 516 154" preserveAspectRatio="none">
+          <polygon points="18,1 498,1 515,18 515,136 498,153 18,153 1,136 1,18" class="neon-border-path" />
+          <path d="M 1,28 L 1,18 L 18,1 L 28,1" class="corner-bracket" />
+          <path d="M 488,1 L 498,1 L 515,18 L 515,28" class="corner-bracket" />
+          <path d="M 515,126 L 515,136 L 498,153 L 488,153" class="corner-bracket" />
+          <path d="M 28,153 L 18,153 L 1,136 L 1,126" class="corner-bracket" />
+          <path d="M 246,1 L 270,1" class="center-notch" />
+          <path d="M 246,153 L 270,153" class="center-notch" />
+        </svg>
+      </button>
+
+    </main>
+
+    <!-- Modal 1: Create Game Modal -->
+    <div class="modal-backdrop" id="modal-create" role="dialog" aria-modal="true" aria-labelledby="modal-create-title">
+      <div class="modal-card">
+        <button type="button" class="modal-close-btn" data-close="modal-create" aria-label="Close modal">&times;</button>
+        <div class="modal-header">
+          <h2 class="modal-title" id="modal-create-title">Create Game</h2>
+          <p class="modal-subtitle">Generate a room code and wait for the attacker.</p>
+        </div>
+        <div class="divider"></div>
+
+        <!-- Initial View: "Generate Room Code" Button & Quick Start -->
+        <div id="cg-step-initial">
+          <button type="button" class="big-generate-btn" id="btn-generate-code">
+            <span>✨</span> Generate Room Code
+          </button>
+          <button type="button" class="big-generate-btn" id="btn-quick-create-forest" style="margin-top: 14px; background: linear-gradient(135deg, #10b981 0%, #047857 100%); border-color: #34d399; box-shadow: 0 0 25px rgba(16, 185, 129, 0.55);">
+            <span>🌲</span> Create & Go Inside The Forest
+          </button>
+        </div>
+
+        <!-- Active View: Shows Room Code + Waiting / Attacker Request -->
+        <div id="cg-step-active" style="display: none;">
+          <div class="form-group">
+            <label class="form-label">Room Code</label>
+            <div class="input-code-display">
+              <span class="code-text" id="display-room-code">TLD-7492</span>
+              <button type="button" class="copy-btn" id="btn-copy-code">COPY</button>
+            </div>
+          </div>
+
+          <!-- Enter The Forest as Host button -->
+          <button type="button" class="big-generate-btn" id="btn-enter-forest-direct" style="margin-bottom: 14px; background: linear-gradient(135deg, #10b981 0%, #047857 100%); border-color: #34d399; box-shadow: 0 0 25px rgba(16, 185, 129, 0.55);">
+            <span>🌲</span> Go Inside The Forest (Host / P1)
+          </button>
+
+          <!-- State A: Waiting for the attacker (STAYS WAITING until attacker actually accepts!) -->
+          <div class="waiting-box" id="waiting-status-box">
+            <div class="radar-pulse-ring">
+              <span class="radar-icon">⚔️</span>
+            </div>
+            <div class="waiting-title">Waiting for the attacker<span id="dots-anim">...</span></div>
+            <div class="waiting-sub">Share your room code with the challenger to begin.</div>
+            <div class="sim-hint">
+              Testing in 1 tab? <span class="sim-now-link" id="sim-attacker-link">Simulate attacker entry now</span>
+            </div>
+          </div>
+
+          <!-- State B: Attacker Accept / Request -> Join or Deny (Black & Violet Theme Only) -->
+          <div class="attacker-request-box" id="attacker-request-box" style="display: none;">
+            <div class="attacker-badge">⚡ Attacker Challenge Received</div>
+            <div class="attacker-name" id="attacker-player-name">⚔️ Attacker [Shadow_Hunter]</div>
+            <div class="attacker-desc">The attacker has accepted your request to enter the chamber!</div>
+            <div class="join-deny-actions">
+              <button type="button" class="btn-action-join" id="btn-host-join">Join & Enter Forest</button>
+              <button type="button" class="btn-action-deny" id="btn-host-deny">Deny</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal Bottom Actions -->
+        <div class="modal-actions">
+          <button type="button" class="action-btn secondary" data-close="modal-create">Back</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal 2: Join Existing Game Modal -->
+    <div class="modal-backdrop" id="modal-join" role="dialog" aria-modal="true" aria-labelledby="modal-join-title">
+      <div class="modal-card">
+        <button type="button" class="modal-close-btn" data-close="modal-join" aria-label="Close modal">&times;</button>
+        <div class="modal-header">
+          <h2 class="modal-title" id="modal-join-title">Join Existing Game</h2>
+          <p class="modal-subtitle">Enter the code shared by the host.</p>
+        </div>
+        <div class="divider"></div>
+
+        <div class="form-group">
+          <label class="form-label" for="join-code-input">Enter the room code</label>
+          <input 
+            type="text" 
+            class="text-input" 
+            id="join-code-input" 
+            placeholder="TLD-____" 
+            maxlength="10"
+            autocomplete="off"
+            spellcheck="false"
+          >
+        </div>
+
+        <div style="margin-top: 10px; margin-bottom: 10px; text-align: center;">
+          <button type="button" id="btn-direct-join-forest" style="background: none; border: none; color: #c4b5fd; font-size: 12px; text-decoration: underline; cursor: pointer; letter-spacing: 0.5px; font-family: inherit;">
+            ⚡ Host already inside? Enter The Forest directly as Player 2
+          </button>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="action-btn secondary" data-close="modal-join">Back</button>
+          <button type="button" class="action-btn primary" id="btn-connect-join-game">Join Game</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification Banner -->
+    <div class="toast-msg" id="toast-msg">Room Code copied to clipboard!</div>
+  </div>
+
+  <script>
+    /* ========================================================
+       Web Audio API Synthesizer (Realistic Fantasy UI SFX)
+       ======================================================== */
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+
+      initContext() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            this.ctx = new AudioContext();
+          }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playHover() {
+        if (!this.enabled) return;
+        this.initContext();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, now); // D5
+        osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.12); // G5
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.exponentialRampToValueAtTime(0.07, now + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.2);
+      }
+
+      playClick() {
+        if (!this.enabled) return;
+        this.initContext();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const oscSub = this.ctx.createOscillator();
+        const gainSub = this.ctx.createGain();
+        oscSub.type = 'sine';
+        oscSub.frequency.setValueAtTime(140, now);
+        oscSub.frequency.exponentialRampToValueAtTime(45, now + 0.25);
+        gainSub.gain.setValueAtTime(0.18, now);
+        gainSub.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        oscSub.connect(gainSub);
+        gainSub.connect(this.ctx.destination);
+        oscSub.start(now);
+        oscSub.stop(now + 0.26);
+
+        const oscChime = this.ctx.createOscillator();
+        const gainChime = this.ctx.createGain();
+        oscChime.type = 'triangle';
+        oscChime.frequency.setValueAtTime(880, now);
+        oscChime.frequency.exponentialRampToValueAtTime(1174.66, now + 0.1);
+        gainChime.gain.setValueAtTime(0.12, now);
+        gainChime.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+        oscChime.connect(gainChime);
+        gainChime.connect(this.ctx.destination);
+        oscChime.start(now);
+        oscChime.stop(now + 0.36);
+      }
+
+      playAlert() {
+        if (!this.enabled) return;
+        this.initContext();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(523.25, now);
+        osc.frequency.setValueAtTime(659.25, now + 0.08);
+        osc.frequency.setValueAtTime(783.99, now + 0.16);
+        osc.frequency.setValueAtTime(1046.50, now + 0.24);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.46);
+      }
+
+      playClose() {
+        if (!this.enabled) return;
+        this.initContext();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(220, now + 0.15);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.16);
+      }
+    }
+
+    const sound = new SoundEngine();
+
+    // Toggle Audio Button
+    const audioBtn = document.getElementById('audio-toggle-btn');
+    const audioIcon = document.getElementById('audio-icon');
+    audioBtn.addEventListener('click', () => {
+      sound.enabled = !sound.enabled;
+      audioIcon.textContent = sound.enabled ? '🔊' : '🔇';
+      showToast(sound.enabled ? 'Sound Effects Enabled' : 'Sound Effects Muted');
+    });
+
+    /* ========================================================
+       CROSS-TAB REAL MULTIPLAYER SYNCHRONIZATION
+       Uses BroadcastChannel + localStorage events to connect tabs
+       ======================================================== */
+    const mpChannel = new BroadcastChannel('TLD_MULTIPLAYER_SYNC');
+
+    let currentHostRoomCode = null;
+    let pendingAttackerName = 'Shadow_Hunter';
+    let dotsInterval = null;
+
+    // Listen for cross-tab messages
+    mpChannel.onmessage = (event) => {
+      const data = event.data;
+      if (!data) return;
+
+      // When Host receives Attacker's request to join
+      if (data.type === 'ATTACKER_ACCEPTED_GAME') {
+        if (currentHostRoomCode && data.roomCode.toUpperCase() === currentHostRoomCode.toUpperCase()) {
+          pendingAttackerName = data.attackerName || 'Attacker';
+          triggerAttackerRequest(pendingAttackerName);
+        }
+      }
+
+      // When Attacker receives Host's decision (Join or Deny)
+      if (data.type === 'HOST_DECISION') {
+        const enteredVal = joinCodeInput.value.trim().toUpperCase();
+        if (enteredVal === data.roomCode.toUpperCase()) {
+          if (data.decision === 'JOIN') {
+            sound.playAlert();
+            showToast('⚔️ Host accepted! Entering The Forest...');
+            btnConnectJoin.textContent = 'Entering The Forest...';
+            setTimeout(() => {
+              enterTheForest(enteredVal, 2);
+            }, 800);
+          } else if (data.decision === 'DENY') {
+            sound.playClose();
+            showToast('❌ Host denied your request to enter.');
+            btnConnectJoin.textContent = 'Join';
+            btnConnectJoin.disabled = false;
+          }
+        }
+      }
+    };
+
+    /* ========================================================
+       Menu Buttons & Modal Open / Close
+       ======================================================== */
+    const btnCreate = document.getElementById('btn-create-game');
+    const btnJoin = document.getElementById('btn-join-game');
+    const modalCreate = document.getElementById('modal-create');
+    const modalJoin = document.getElementById('modal-join');
+
+    [btnCreate, btnJoin].forEach(btn => {
+      btn.addEventListener('mouseenter', () => sound.playHover());
+    });
+
+    // Open Create Game Modal
+    btnCreate.addEventListener('click', () => {
+      sound.playClick();
+      resetCreateGameFlow();
+      openModal(modalCreate);
+    });
+
+    // Open Join Existing Game Modal
+    btnJoin.addEventListener('click', () => {
+      sound.playClick();
+      btnConnectJoin.textContent = 'Join';
+      btnConnectJoin.disabled = false;
+      openModal(modalJoin);
+      setTimeout(() => document.getElementById('join-code-input').focus(), 150);
+    });
+
+    function openModal(modal) {
+      modal.classList.add('active');
+    }
+
+    function closeModal(modal) {
+      modal.classList.remove('active');
+      sound.playClose();
+      if (dotsInterval) clearInterval(dotsInterval);
+    }
+
+    document.querySelectorAll('[data-close]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const modalId = btn.getAttribute('data-close');
+        const modal = document.getElementById(modalId);
+        if (modal) closeModal(modal);
+      });
+    });
+
+    [modalCreate, modalJoin].forEach(modal => {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          closeModal(modal);
+        }
+      });
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeModal(modalCreate);
+        closeModal(modalJoin);
+      }
+    });
+
+    /* ========================================================
+       Create Game Workflow Logic:
+       1. "Generate Room Code"
+       2. Stays in "Waiting for the attacker..." (NO AUTO-TIMER)
+       3. ONLY shows "Join or Deny" when attacker ACTUALLY accepts
+       ======================================================== */
+    const btnGenerateCode = document.getElementById('btn-generate-code');
+    const cgStepInitial = document.getElementById('cg-step-initial');
+    const cgStepActive = document.getElementById('cg-step-active');
+    const waitingStatusBox = document.getElementById('waiting-status-box');
+    const attackerRequestBox = document.getElementById('attacker-request-box');
+    const displayRoomCode = document.getElementById('display-room-code');
+    const attackerPlayerName = document.getElementById('attacker-player-name');
+    const simAttackerLink = document.getElementById('sim-attacker-link');
+    const btnHostJoin = document.getElementById('btn-host-join');
+    const btnHostDeny = document.getElementById('btn-host-deny');
+
+    function resetCreateGameFlow() {
+      if (dotsInterval) clearInterval(dotsInterval);
+      cgStepInitial.style.display = 'block';
+      cgStepActive.style.display = 'none';
+      waitingStatusBox.style.display = 'block';
+      attackerRequestBox.style.display = 'none';
+    }
+
+    function startWaitingDots() {
+      const dotsElem = document.getElementById('dots-anim');
+      let dotsCount = 0;
+      if (dotsInterval) clearInterval(dotsInterval);
+      dotsInterval = setInterval(() => {
+        dotsCount = (dotsCount + 1) % 4;
+        dotsElem.textContent = '.'.repeat(dotsCount);
+      }, 400);
+    }
+
+    btnGenerateCode.addEventListener('click', () => {
+      sound.playClick();
+      // Generate randomized room code
+      currentHostRoomCode = 'TLD-' + Math.floor(1000 + Math.random() * 9000);
+      displayRoomCode.textContent = currentHostRoomCode;
+
+      // Broadcast room created
+      localStorage.setItem('TLD_LATEST_ROOM_CODE', currentHostRoomCode);
+
+      // Switch to active waiting view
+      cgStepInitial.style.display = 'none';
+      cgStepActive.style.display = 'block';
+      waitingStatusBox.style.display = 'block';
+      attackerRequestBox.style.display = 'none';
+
+      // Start animated waiting dots
+      startWaitingDots();
+
+      showToast(`Generated room code: ${currentHostRoomCode}`);
+      // NOTE: NO automatic timer! It remains waiting until an attacker actually joins.
+    });
+
+    // Manual single-tab simulation link
+    simAttackerLink.addEventListener('click', () => {
+      triggerAttackerRequest('Attacker [Shadow_Hunter]');
+    });
+
+    function triggerAttackerRequest(name) {
+      if (dotsInterval) clearInterval(dotsInterval);
+      sound.playAlert();
+      attackerPlayerName.textContent = `⚔️ ${name}`;
+      waitingStatusBox.style.display = 'none';
+      attackerRequestBox.style.display = 'block';
+      showToast('⚠️ Attacker accepted the challenge! Choose Join or Deny.');
+    }
+
+    // Transition function to navigate into TheForest with room and player role
+    function enterTheForest(roomCode, role = 1) {
+      const code = roomCode || currentHostRoomCode || ('TLD-' + Math.floor(1000 + Math.random() * 9000));
+      localStorage.setItem('TLD_LATEST_ROOM_CODE', code);
+      localStorage.setItem('TLD_LATEST_ROLE', String(role));
+      const targetUrl = `/forest/?room=${encodeURIComponent(code)}&player=${role}&autostart=1`;
+      showToast(`🌲 Teleporting into The Forest as Player ${role} (Room: ${code})...`);
+      setTimeout(() => {
+        window.location.href = targetUrl;
+      }, 900);
+    }
+
+    // Host clicks "Join & Enter Forest"
+    btnHostJoin.addEventListener('click', () => {
+      sound.playClick();
+      mpChannel.postMessage({
+        type: 'HOST_DECISION',
+        roomCode: currentHostRoomCode,
+        decision: 'JOIN'
+      });
+      showToast('⚔️ Entering The Forest Chamber! Match starting...');
+      enterTheForest(currentHostRoomCode, 1);
+    });
+
+    // Quick Create & Enter Forest immediately
+    const btnQuickCreateForest = document.getElementById('btn-quick-create-forest');
+    if (btnQuickCreateForest) {
+      btnQuickCreateForest.addEventListener('click', () => {
+        sound.playClick();
+        currentHostRoomCode = 'TLD-' + Math.floor(1000 + Math.random() * 9000);
+        showToast(`🌲 Room ${currentHostRoomCode} Created!`);
+        enterTheForest(currentHostRoomCode, 1);
+      });
+    }
+
+    // Direct Host Enter button inside active waiting view
+    const btnEnterForestDirect = document.getElementById('btn-enter-forest-direct');
+    if (btnEnterForestDirect) {
+      btnEnterForestDirect.addEventListener('click', () => {
+        sound.playClick();
+        if (!currentHostRoomCode) {
+          currentHostRoomCode = 'TLD-' + Math.floor(1000 + Math.random() * 9000);
+        }
+        enterTheForest(currentHostRoomCode, 1);
+      });
+    }
+
+    // Host clicks "Deny" (Black & Violet theme)
+    btnHostDeny.addEventListener('click', () => {
+      sound.playClick();
+      mpChannel.postMessage({
+        type: 'HOST_DECISION',
+        roomCode: currentHostRoomCode,
+        decision: 'DENY'
+      });
+      showToast('❌ Attacker request denied. Waiting for new attacker...');
+      attackerRequestBox.style.display = 'none';
+      waitingStatusBox.style.display = 'block';
+
+      // Resume waiting dots (remains waiting without auto-timer)
+      startWaitingDots();
+    });
+
+    // Copy Room Code Button
+    const btnCopyCode = document.getElementById('btn-copy-code');
+    btnCopyCode.addEventListener('click', () => {
+      sound.playClick();
+      const code = displayRoomCode.textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        showToast(`Copied code: ${code}`);
+      }).catch(() => {
+        showToast(`Code: ${code}`);
+      });
+    });
+
+    /* ========================================================
+       Join Existing Game Workflow Logic:
+       - Enter the room code
+       - Join button at the end
+       - Real cross-tab sync notifies host that attacker accepted!
+       ======================================================== */
+    const joinCodeInput = document.getElementById('join-code-input');
+    const btnConnectJoin = document.getElementById('btn-connect-join-game');
+
+    btnConnectJoin.addEventListener('click', () => {
+      sound.playClick();
+      const val = joinCodeInput.value.trim().toUpperCase();
+      if (!val) {
+        showToast('Please enter the room code first!');
+        joinCodeInput.focus();
+        return;
+      }
+
+      btnConnectJoin.textContent = 'Waiting for Host...';
+      btnConnectJoin.disabled = true;
+      showToast(`Accepted game [${val}]! Waiting for host to Join or Deny...`);
+
+      // Broadcast to host tab in real time!
+      mpChannel.postMessage({
+        type: 'ATTACKER_ACCEPTED_GAME',
+        roomCode: val,
+        attackerName: 'Attacker [Challenger]'
+      });
+    });
+
+    // Direct Join button for Player 2
+    const btnDirectJoinForest = document.getElementById('btn-direct-join-forest');
+    if (btnDirectJoinForest) {
+      btnDirectJoinForest.addEventListener('click', () => {
+        const val = joinCodeInput.value.trim().toUpperCase();
+        if (!val) {
+          showToast('Please enter the room code first!');
+          joinCodeInput.focus();
+          return;
+        }
+        sound.playClick();
+        enterTheForest(val, 2);
+      });
+    }
+
+    joinCodeInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        btnConnectJoin.click();
+      }
+    });
+
+    /* ========================================================
+       Toast Notification Utility
+       ======================================================== */
+    const toast = document.getElementById('toast-msg');
+    let toastTimeout = null;
+    function showToast(text) {
+      toast.textContent = text;
+      toast.classList.add('show');
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.classList.remove('show');
+      }, 2800);
+    }
+
+    /* ========================================================
+       Atmospheric Floating Purple Crystal Particles
+       ======================================================== */
+    const canvas = document.getElementById('ambient-canvas');
+    const ctx = canvas.getContext('2d');
+    let particlesActive = true;
+    let particles = [];
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    class Particle {
+      constructor() {
+        this.reset();
+      }
+      reset() {
+        this.x = Math.random() * canvas.width;
+        this.y = canvas.height + Math.random() * 40;
+        this.size = Math.random() * 2.2 + 0.8;
+        this.speedY = Math.random() * 0.45 + 0.15;
+        this.speedX = (Math.random() - 0.5) * 0.3;
+        this.opacity = Math.random() * 0.5 + 0.2;
+        this.fadeSpeed = Math.random() * 0.003 + 0.001;
+        const colors = [
+          'rgba(186, 95, 252, ',
+          'rgba(214, 126, 230, ',
+          'rgba(142, 34, 255, ',
+          'rgba(240, 180, 255, '
+        ];
+        this.color = colors[Math.floor(Math.random() * colors.length)];
+      }
+      update() {
+        this.y -= this.speedY;
+        this.x += this.speedX;
+        this.opacity -= this.fadeSpeed;
+        if (this.y < -10 || this.opacity <= 0) {
+          this.reset();
+        }
+      }
+      draw() {
+        ctx.fillStyle = this.color + this.opacity + ')';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    for (let i = 0; i < 45; i++) {
+      const p = new Particle();
+      p.y = Math.random() * canvas.height;
+      particles.push(p);
+    }
+
+    function animateParticles() {
+      if (particlesActive) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach(p => {
+          p.update();
+          p.draw();
+        });
+      }
+      requestAnimationFrame(animateParticles);
+    }
+    animateParticles();
+
+    // Particle Toggle Button
+    const particlesBtn = document.getElementById('particles-toggle-btn');
+    particlesBtn.addEventListener('click', () => {
+      particlesActive = !particlesActive;
+      if (!particlesActive) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+      showToast(particlesActive ? 'Particles Enabled' : 'Particles Disabled');
+    });
+  </script>
+</body>
+</html>

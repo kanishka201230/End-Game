@@ -1,0 +1,16 @@
+{
+  "name": "lastdoor-project",
+  "version": "1.0.0",
+  "description": "The Last Door - Connected Expo_Game and TheForest",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node dev.mjs",
+    "start": "node dev.mjs",
+    "dev:expo": "npm run dev --prefix Expo_Game",
+    "dev:forest": "npm run dev --prefix TheForest",
+    "server": "npm run server --prefix TheForest",
+    "build:expo": "npm run build --prefix Expo_Game",
+    "build:forest": "npm run build --prefix TheForest"
+  }
+}

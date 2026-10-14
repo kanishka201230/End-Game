@@ -1,0 +1,10 @@
+node_modules/
+*/node_modules/
+dist/
+*/dist/
+Expo_Game/public/forest/
+.vscode/
+.idea/
+*.log
+.DS_Store
+Thumbs.db
