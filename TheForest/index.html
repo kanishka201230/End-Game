@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Forest - Arena Trial</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%B2%3C/text%3E%3C/svg%3E" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0f0a; }
+    #app { position: fixed; inset: 0; }
+    #app canvas { display: block; }
+
+    #overlay {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: #000000;
+      color: #e8eede;
+      transition: opacity 0.4s ease;
+      text-align: center;
+      cursor: pointer;
+    }
+    #overlay.hidden { opacity: 0; pointer-events: none; }
+
+    /* Loading Screen: ONLY the Connecting Loading GIF */
+    #loading-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+    }
+
+    .connecting-media {
+      display: block;
+      max-width: min(520px, 92vw);
+      max-height: 85vh;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    /* Pause Menu (Esc key) */
+    #pause-menu {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.2rem;
+    }
+    .pause-title {
+      font-size: 2.2rem;
+      letter-spacing: 0.35em;
+      color: #f2f5e6;
+      margin-bottom: 0.5rem;
+    }
+    .action-btn {
+      padding: 0.85rem 2.8rem;
+      font-size: 0.95rem;
+      letter-spacing: 0.18em;
+      font-family: Georgia, serif;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.25s;
+      text-decoration: none;
+    }
+    .action-btn.resume {
+      background: rgba(34, 197, 94, 0.25);
+      border: 1.5px solid #4ade80;
+      color: #f0fdf4;
+      box-shadow: 0 0 20px rgba(74, 222, 128, 0.4);
+    }
+    .action-btn.resume:hover {
+      background: rgba(34, 197, 94, 0.45);
+      box-shadow: 0 0 30px rgba(74, 222, 128, 0.7);
+      transform: translateY(-2px);
+    }
+    .action-btn.exit {
+      background: rgba(147, 51, 234, 0.2);
+      border: 1.5px solid #a855f7;
+      color: #f3e8ff;
+    }
+    .action-btn.exit:hover {
+      background: rgba(147, 51, 234, 0.35);
+      box-shadow: 0 0 20px rgba(168, 85, 247, 0.5);
+      transform: translateY(-2px);
+    }
+
+    #controls-hint {
+      margin-top: 2rem;
+      font-size: 0.82rem;
+      letter-spacing: 0.12em;
+      color: #94a3b8;
+    }
+    #controls-hint span { margin: 0 0.8rem; white-space: nowrap; }
+    kbd {
+      font: 0.75rem monospace; padding: 0.2rem 0.5rem;
+      border: 1px solid rgba(255,255,255,0.3); border-radius: 3px;
+      color: #fff; background: rgba(0,0,0,0.5);
+    }
+
+    #crosshair {
+      position: fixed; left: 50%; top: 50%; z-index: 5;
+      width: 4px; height: 4px; margin: -2px 0 0 -2px;
+      border-radius: 50%; background: rgba(255,255,255,0.7);
+      box-shadow: 0 0 6px rgba(0,0,0,0.8);
+      opacity: 0; transition: opacity 0.3s;
+    }
+    body.playing #crosshair { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="crosshair"></div>
+
+  <!-- Loading & In-Game Pause Overlay -->
+  <div id="overlay">
+    <!-- Active Loading Screen: ONLY the Connecting Loading GIF -->
+    <div id="loading-container">
+      <img id="connecting-gif" src="/loading.gif" alt="Loading..." class="connecting-media" />
+    </div>
+
+    <!-- Pause Menu (Only when ESC is pressed in game) -->
+    <div id="pause-menu">
+      <h2 class="pause-title">GAME PAUSED</h2>
+      <button id="resume-btn" type="button" class="action-btn resume">▶ RESUME GAME</button>
+      <a id="btn-back-to-expo" href="#" class="action-btn exit">← RETURN TO MAIN MENU</a>
+      <div id="controls-hint">
+        <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</span>
+        <span><kbd>Shift</kbd> Sprint</span>
+        <span>Walk only on stone paths</span>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

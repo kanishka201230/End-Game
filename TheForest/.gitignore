@@ -1,0 +1,17 @@
+# Dependencias
+node_modules/
+
+# Entornos
+.env
+.env.local
+
+# Editor
+.vscode/
+.idea/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Claude / agentes de IA
+.claude/

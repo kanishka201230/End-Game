@@ -3,6 +3,8 @@ node_modules/
 dist/
 */dist/
 Expo_Game/public/forest/
+*.stl
+*.exr
 .vscode/
 .idea/
 *.log
